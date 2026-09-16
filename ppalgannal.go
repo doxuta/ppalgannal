@@ -1,6 +1,6 @@
 // Package ppalgannal computes South Korea's public holidays (관공서의 공휴일)
 // for a Gregorian year straight from the text of the governing decree,
-// 관공서의 공휴일에 관한 규정 (대통령령 제36290호, 시행 2026-05-11):
+// 관공서의 공휴일에 관한 규정 (대통령령 제36290호, 시행 2026-05-01):
 //
 //   - the fixed-date holidays of 제2조;
 //   - the lunar ones (설날 연휴, 부처님 오신 날, 추석 연휴), converted with
@@ -111,9 +111,11 @@ var substitutable = map[string]struct {
 	// 대통령령 제33448호 (2023-05-04).
 	"부처님 오신 날": {true, Date(2023, 5, 4)},
 	"기독탄신일":    {true, Date(2023, 5, 4)},
-	// 대통령령 제36290호 (2026-04-30, in force 2026-05-01): both are new holidays.
+	// 대통령령 제36290호 (2026-04-30): the decree itself is in force 2026-05-01,
+	// but its 부칙 holds the 제2조제2호 개정규정 — the one that widens 국경일 to
+	// take in 제헌절 — back to 2026-05-11.
 	"노동절": {true, Date(2026, 5, 1)},
-	"제헌절": {true, Date(2026, 5, 1)},
+	"제헌절": {true, Date(2026, 5, 11)},
 }
 
 // Year returns every public holiday of Gregorian year y in date order,
@@ -179,7 +181,7 @@ func baseHolidays(y int) ([]Holiday, error) {
 		fixed(10, 9, "한글날", "Hangul Day", "제2조제2호 (국경일)"),
 		fixed(12, 25, "기독탄신일", "Christmas Day", "제2조제10호"),
 	}
-	if y >= 2026 { // 법률 제21338호 / 대통령령 제36290호
+	if y >= 2026 { // 법률 제21543호 (노동절) · 제21338호 (제헌절) / 대통령령 제36290호
 		out = append(out,
 			fixed(5, 1, "노동절", "Labour Day", "제2조제6호"),
 			fixed(7, 17, "제헌절", "Constitution Day", "제2조제2호 (국경일)"),

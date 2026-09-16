@@ -82,7 +82,7 @@ and `Reason` for anything that is not a plain fixed or lunar holiday.
 
 ## How the rule is applied
 
-제3조 (대통령령 제36290호, in force 2026-05-11) says: for the holidays of
+제3조 (대통령령 제36290호, in force 2026-05-01) says: for the holidays of
 제2조 items 2–10,
 
 | clause | condition | who |
@@ -98,18 +98,23 @@ and `Reason` for anything that is not a plain fixed or lunar holiday.
 The implementation is one loop: every date that carries an eligible holiday
 and is lost under ①1–①3 produces one substitute, the first later day that is
 neither a holiday, a weekend, nor an already-assigned substitute. That
-single sentence is ② and ③ as well. Measured over 2014–2199, ③ never
-fires: a weekday overlap only ever happens inside the 추석 block or on
-어린이날, and the Saturday after is never free, so the clause is pinned by
-a synthetic test instead of a real year. Eligibility is checked against the date,
-not the year, using the amendment history:
+single sentence is ② and ③ as well. A weekday overlap (①3) has three shapes
+over 2014–2199: 개천절 inside the 추석 block, 부처님 오신 날 on 어린이날, and —
+since 노동절 joined 제2조 in 2026 — 부처님 오신 날 on 노동절 (2085, 2153).
+③ fires once, in 2142: 개천절 falls on Wednesday 10-03 inside a 추석 block
+that runs to Friday 10-05, so the first 비공휴일 after the lost date is the
+free Saturday 10-06 and 제3항 moves the substitute on to Monday 10-08. Both
+facts are pinned by a scan of the whole range, the bare Friday shape of ③ by
+a synthetic test. Eligibility is checked against the date, not the year,
+using the amendment history:
 
 | in force | eligible |
 |---|---|
 | 2013-11-05 (제24828호) | 설날·추석 연휴 (Sunday/overlap), 어린이날 (also Saturday) |
 | 2021-08-04 (제31930호) | + 3·1절, 광복절, 개천절, 한글날 |
 | 2023-05-04 (제33448호) | + 부처님 오신 날, 기독탄신일 |
-| 2026-05-01 (제36290호) | + 노동절 and 제헌절, both new holidays under 법률 제21338호 |
+| 2026-05-01 (제36290호) | + 노동절, a new holiday under 법률 제21543호 |
+| 2026-05-11 (제36290호 부칙 단서) | + 제헌절, a new holiday under 법률 제21338호 |
 
 Regular election days (제2조제10호의2) come from 공직선거법 제34조: the first
 Wednesday on or after term expiry minus 70/50/30 days for

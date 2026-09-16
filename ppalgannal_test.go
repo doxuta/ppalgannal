@@ -1,6 +1,7 @@
 package ppalgannal
 
 import (
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -208,6 +209,21 @@ func TestEligibilityFollowsTheAmendmentDates(t *testing.T) {
 			t.Errorf("2025 must not contain %s", h.Name)
 		}
 	}
+	// 대통령령 제36290호 is in force 2026-05-01, but its 부칙 holds the
+	// 제2조제2호 개정규정 — and so 제헌절 — back to 2026-05-11. No holiday in
+	// range falls inside that window, so the two dates are pinned directly
+	// against the README's amendment table rather than through a result.
+	for _, c := range []struct {
+		name string
+		from time.Time
+	}{
+		{"노동절", Date(2026, 5, 1)},
+		{"제헌절", Date(2026, 5, 11)},
+	} {
+		if got := substitutable[c.name].from; !got.Equal(c.from) {
+			t.Errorf("%s eligible from %s, want %s", c.name, ISO(got), ISO(c.from))
+		}
+	}
 }
 
 func TestOnAndIsWorkday(t *testing.T) {
@@ -277,10 +293,10 @@ func parse(t *testing.T, s string) time.Time {
 	return d
 }
 
-// 제3조제3항 — a substitute that would land on Saturday moves on. No real
-// year up to 2199 exercises it (a weekday overlap only ever happens inside
-// the 추석 block or on 어린이날, and the following Saturday is never free),
-// so it is pinned on a synthetic pair of holidays on a Friday.
+// 제3조제3항 — a substitute that would land on Saturday moves on. This is the
+// bare shape: a Friday overlap whose Saturday is free. The one real year in
+// range that reaches 제3항 gets there the long way round, through a 추석
+// block; see TestClause3FiresIn2142.
 func TestSubstituteSkipsSaturday(t *testing.T) {
 	fri := Date(2026, 7, 10)
 	in := []Holiday{
@@ -290,5 +306,96 @@ func TestSubstituteSkipsSaturday(t *testing.T) {
 	got := substitutes(in)
 	if len(got) != 1 || !got[0].Date.Equal(Date(2026, 7, 13)) {
 		t.Errorf("want one substitute on Monday 2026-07-13, got %v", got)
+	}
+}
+
+// triggerDate reads the lost date back out of a substitute's Reason.
+func triggerDate(t *testing.T, h Holiday) time.Time {
+	t.Helper()
+	i := strings.Index(h.Reason, "(")
+	if i < 0 || len(h.Reason) < i+11 {
+		t.Fatalf("substitute %s carries no lost date: %q", ISO(h.Date), h.Reason)
+	}
+	return parse(t, h.Reason[i+1:i+11])
+}
+
+// clause3Years returns every year in range where 제3조제3항 had to move a
+// substitute off a Saturday. A Saturday left free between a lost date and the
+// substitute it produced can only have been skipped by 제3항: the search
+// already walks past 제2조 holidays and substitutes assigned earlier (제2항),
+// and both of those show up in the year's own list. Sundays (제2조제1호) do
+// not — Year excludes them — but a Saturday is never a Sunday, so the day
+// this looks for cannot be one.
+func clause3Years(t *testing.T) []int {
+	t.Helper()
+	var years []int
+	for y := MinYear; y <= MaxYear; y++ {
+		hs := mustYear(t, y)
+		busy := map[time.Time]bool{}
+		for _, h := range hs {
+			busy[h.Date] = true
+		}
+		free := false
+		for _, h := range hs {
+			if h.Kind != Substitute {
+				continue
+			}
+			for d := triggerDate(t, h).AddDate(0, 0, 1); d.Before(h.Date); d = d.AddDate(0, 0, 1) {
+				if d.Weekday() == time.Saturday && !busy[d] {
+					free = true
+				}
+			}
+		}
+		// One entry per year: two qualifying Saturdays in one year is a
+		// different fact from two such years, and the caller counts years.
+		if free {
+			years = append(years, y)
+		}
+	}
+	return years
+}
+
+// 2142 is the only year in range that reaches 제3조제3항: 개천절 falls on
+// Wednesday 10-03 inside a 추석 block running to Friday 10-05, so the first
+// 비공휴일 after the lost date is the free Saturday 10-06 and 제3항 moves the
+// substitute on to Monday 10-08. The README says so; this holds it to it.
+func TestClause3FiresIn2142(t *testing.T) {
+	if got := clause3Years(t); len(got) != 1 || got[0] != 2142 {
+		t.Errorf("years exercising 제3조제3항: got %v, want [2142]", got)
+	}
+	if On(Date(2142, 10, 6)) != nil {
+		t.Error("2142-10-06 must be a free Saturday — it is the day 제3항 skips")
+	}
+	hs := On(Date(2142, 10, 8))
+	if len(hs) != 1 || hs[0].Kind != Substitute ||
+		hs[0].Reason != "개천절 (2142-10-03) coincided with 추석 전날 (제3조제1항제3호)" {
+		t.Errorf("2142-10-08 = %v, want the 개천절 substitute pushed past Saturday 10-06", hs)
+	}
+}
+
+// The holidays that trigger a weekday overlap (제3조제1항제3호) over the whole
+// range. 노동절 only joins 제2조 in 2026 and collides with 부처님 오신 날 twice;
+// that shape sits outside both the 추석 block and 어린이날.
+func TestWeekdayOverlapTriggers(t *testing.T) {
+	seen := map[string]bool{}
+	for y := MinYear; y <= MaxYear; y++ {
+		for _, h := range mustYear(t, y) {
+			if h.Kind == Substitute && strings.Contains(h.Reason, "제3조제1항제3호") {
+				seen[h.Reason[:strings.Index(h.Reason, " (")]] = true
+			}
+		}
+	}
+	var got []string
+	for n := range seen {
+		got = append(got, n)
+	}
+	sort.Strings(got)
+	if want := []string{"개천절", "노동절", "어린이날", "추석 전날"}; !equal(got, want) {
+		t.Errorf("제3조제1항제3호 triggers over %d–%d: got %v, want %v", MinYear, MaxYear, got, want)
+	}
+	for _, y := range []int{2085, 2153} {
+		if !contains(ofKind(mustYear(t, y), Substitute), ISO(Date(y, 5, 2))) {
+			t.Errorf("%d: 노동절 sharing 05-01 with 부처님 오신 날 must give a substitute on 05-02", y)
+		}
 	}
 }
