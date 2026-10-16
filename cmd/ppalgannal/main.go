@@ -12,6 +12,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/doxuta/ppalgannal"
@@ -48,6 +49,12 @@ func main() {
 	}
 
 	if d, err := time.Parse("2006-01-02", arg); err == nil {
+		// On reports "no holiday" for a year outside the supported window;
+		// the CLI should refuse it like the year form does.
+		if _, err := ppalgannal.Year(d.Year()); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 		hs := ppalgannal.On(d)
 		if *asJSON {
 			json.NewEncoder(os.Stdout).Encode(toRows(hs))
@@ -66,8 +73,10 @@ func main() {
 		return
 	}
 
-	var y int
-	if _, err := fmt.Sscanf(arg, "%d", &y); err != nil {
+	// A malformed date (2026-1-5, 2026-02-30) must not be read as the year
+	// 2026: Atoi, unlike Sscanf, rejects trailing text.
+	y, err := strconv.Atoi(arg)
+	if err != nil {
 		flag.Usage()
 		os.Exit(2)
 	}
